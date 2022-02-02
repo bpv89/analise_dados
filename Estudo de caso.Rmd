@@ -1,0 +1,278 @@
+---
+title: "Projeto final"
+author: "Bruno"
+date: "31/01/2022"
+output: html_document
+---
+
+Este é o projeto final do curso de Data Analist, da Google. Na atividade o cenário proposto é que:
+
+  Você é um analista de dados júnior em uma empresa de compartilhamento de bicicletas de Chicago, nos Estados Unidos, que utiliza R para sua análises, onde a expectativa de crescimento, segundo o diretor de marketing, reside no aumento de membros com assinaturas anuais. Para isso o grupo bisca informações sobre as diferentes formas de uso entre os clientes casuais e os assinantes. Baseado nessas informações serão criadas estratégias de marketing para a conversão de membros casuais em membros anuais.
+  
+  Com estas informações, três perguntas foram propostas:
+  
+  1) Como os diferentes membros utilizam o serviço?
+  
+  2) Por que membros casuais comprariam a assinatura anual?
+  
+  3) Como a empresa usaria as mídias digitais para influenciar os membros casuais a se tornarem membros anuais?
+  
+  Para isso foram disponibilizados os dados trimestrais da empresa.
+  
+### Preparação dos dados
+
+  Após ter acesso ao banco de dados é iniciada o processo de tratamento. 
+
+* Primeiramente são chamadas as bibliotecas necessárias para o desenvolvimento da análise.
+
+```{r message=FALSE, warning=FALSE, , message=FALSE}
+library(tidyverse)  
+library(lubridate)  
+library(ggplot2) 
+```
+
+* Após isso os arquivos .csv são carregados no programa
+
+```{r message=FALSE, warning=FALSE, , message=FALSE}
+q2_2019 <- read_csv("Divvy_Trips_2019_Q2.csv")
+q3_2019 <- read_csv("Divvy_Trips_2019_Q3.csv")
+q4_2019 <- read_csv("Divvy_Trips_2019_Q4.csv")
+q1_2020 <- read_csv("Divvy_Trips_2020_Q1.csv")
+```
+
+* Com os dados carregados no R, são verificados os nomes das colunas, para além da já visualizada no momento de carregamento. Para conhecer um pouco mais sobre a base de dados e verificar a possibilidade de mesclá-los em uma única base.
+
+```{r message=FALSE, warning=FALSE, , message=FALSE}
+colnames(q3_2019)
+colnames(q4_2019)
+colnames(q2_2019)
+colnames(q1_2020)
+```
+
+Inicialmente já é possível perceber que as colunas não seguem uma nomeação padronizada precisando de ajustes, tanto nos nomes quanto no tipo de dados. Para isso será usada a base mais recente como base, esperando que no futuro, este seja o formato padrão adotado.
+
+* Durante a renomeação foi preferido a manutenção dos termos em inglês visto a localização original da empresa e como dito anteriormente, para estar compapatível com os futuros bancos de dados.
+
+```{r warning=FALSE, , message=FALSE}
+(q4_2019 <- rename(q4_2019
+                   ,ride_id = trip_id
+                   ,rideable_type = bikeid 
+                   ,started_at = start_time  
+                   ,ended_at = end_time  
+                   ,start_station_name = from_station_name 
+                   ,start_station_id = from_station_id 
+                   ,end_station_name = to_station_name 
+                   ,end_station_id = to_station_id 
+                   ,member_casual = usertype))
+
+(q3_2019 <- rename(q3_2019
+                   ,ride_id = trip_id
+                   ,rideable_type = bikeid 
+                   ,started_at = start_time  
+                   ,ended_at = end_time  
+                   ,start_station_name = from_station_name 
+                   ,start_station_id = from_station_id 
+                   ,end_station_name = to_station_name 
+                   ,end_station_id = to_station_id 
+                   ,member_casual = usertype))
+
+(q2_2019 <- rename(q2_2019
+                   ,ride_id = "01 - Rental Details Rental ID"
+                   ,rideable_type = "01 - Rental Details Bike ID" 
+                   ,started_at = "01 - Rental Details Local Start Time"  
+                   ,ended_at = "01 - Rental Details Local End Time"  
+                   ,start_station_name = "03 - Rental Start Station Name" 
+                   ,start_station_id = "03 - Rental Start Station ID"
+                   ,end_station_name = "02 - Rental End Station Name" 
+                   ,end_station_id = "02 - Rental End Station ID"
+                   ,member_casual = "User Type"))
+
+## Mudando os tipo das variáveis, conforme os dados do q1_2021 
+q4_2019 <-  mutate(q4_2019, ride_id = as.character(ride_id) 
+                   ,rideable_type = as.character(rideable_type)) 
+q3_2019 <-  mutate(q3_2019, ride_id = as.character(ride_id)
+                   ,rideable_type = as.character(rideable_type)) 
+q2_2019 <-  mutate(q2_2019, ride_id = as.character(ride_id)
+                   ,rideable_type = as.character(rideable_type)) 
+```
+
+* Com as colunas renomeadas e os formatos de dados ajustados, é feita a junção das tabelas. Removendo as colunas não utilizadas. 
+
+```{r message=FALSE, warning=FALSE}
+all_trips <- bind_rows(q2_2019, q3_2019, q4_2019, q1_2020)
+all_trips <- all_trips %>%  
+  select(-c(start_lat, start_lng, end_lat, end_lng, birthyear, gender, "01 - Rental Details Duration In Seconds Uncapped", "05 - Member Details Member Birthday Year", "Member Gender", "tripduration"))
+
+```
+
+As remoções se devem a mudança de escolhas sobre as informações armazenadas, visto que a base de 2020, a mais recente, não contém informações sobre as latitudes de início e fim, bem como gênero e aniversários. As demais colunas removidas da análise eram de exclusividade do segundo trimestre de 2019, assim também foram removidas.
+
+
+### Limpeza dos dados
+
+* Inicialmente foi feita uma análise previa sobre as informações da base de dados, como número de colunas, linhas. Uma visualização das primeiras linhas de informação e alguns dados iniciais
+
+```{r message=FALSE, warning=FALSE}
+colnames(all_trips) 
+nrow(all_trips) 
+head(all_trips)
+str(all_trips)
+summary(all_trips)
+
+```
+
+* Assim foi visto que, assim como os nomes das colunas o tipo de membro "casual" e "membro", continham diferente nomenclaturas, então foi feita a padronização conforme os dados de 2020.
+
+```{r message=FALSE, warning=FALSE}
+all_trips <-  all_trips %>% 
+  mutate(member_casual = recode(member_casual
+                                ,"Subscriber" = "member"
+                                ,"Customer" = "casual"))
+table(all_trips$member_casual)
+```
+
+* Além disso foi modificado o tipo de formato da data, bem como criado uma coluna para mês, dia, ano e dia da semana. Novamente preferiu-se a utilização das nomenclaturas em inglês.
+
+```{r message=FALSE, warning=FALSE}
+all_trips$date <- as.Date(all_trips$started_at) #The default format is yyyy-mm-dd
+all_trips$month <- format(as.Date(all_trips$date), "%m")
+all_trips$day <- format(as.Date(all_trips$date), "%d")
+all_trips$year <- format(as.Date(all_trips$date), "%Y")
+all_trips$day_of_week <- format(as.Date(all_trips$date), "%A")
+```
+
+* Conforme os ajustes avançam, foram criadas outras duas colunas, uma referente a mudança de estação entre a retirada da bicicleta e outra sobre o tempo de pedalada em minutos. Contudo o transporte das bicicletas para o HQ, para manutenção estava sendo mostrado nos dados, portanto foram removidas.
+
+```{r message=FALSE, warning=FALSE}
+
+all_trips$ride_length <- difftime(all_trips$ended_at,all_trips$started_at)
+all_trips$ride_length <- as.numeric(as.character(all_trips$ride_length)) / 60
+all_trips_v2 <- all_trips[!(all_trips$start_station_name == "HQ QR" | all_trips$ride_length<0),]
+all_trips_v2 <- all_trips_v2 %>%
+  mutate(change_statio = ifelse(start_station_id == end_station_id, "Change", "Keep"))
+```
+
+### Análise dos dados
+
+* Primeiramente é pedido um teste para vizualizar as informações basicas sobre os dados, em especial o tempo de pedalada.
+
+```{r message=FALSE, warning=FALSE}
+summary(all_trips_v2$ride_length)
+```
+Aqui é possível ver que a média (que corresponde a soma de todos os tempos dividido pelo número total de locações) apresenta um tempo de 24,65 minutos. O tempo mínimo correspondendo a uma desistência e o máximo a uma possível não devolução.
+
+* Mais especificamente quanto a diferença entre os usuários casuais e os assinantes:
+
+```{r}
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = mean) # Média
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = median) # Mediana
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = max) # Máximo
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = min) # Mínimo
+```
+
+Aqui é possível ver que os membros casuais tem um tempo de locação muito maior que os usuários anuais, possivelmente tendo como uso das bicicletas como passeio, já os membros utilizando mais como uma forma de deslocamento entre pontos. Mais sobre isso pode ver vistoa frente.
+
+* Ao analisarmos o uso por dia da semana (pelo sistema onde foi feita a analise ser em português, os dias da semana estão em português, devendo ser ajustados conforme o idioma do sistema):
+
+```{r}
+all_trips_v2$day_of_week <- ordered(all_trips_v2$day_of_week, levels=c("domingo", "segunda-feira", "terça-feira",
+                                                                       "quarta-feira", "quinta-feira",
+                                                                       "sexta-feira", "sábado"))
+
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual + all_trips_v2$day_of_week, FUN = mean)
+
+```
+
+É possível notar um uso progressivo durante a semana e atingindo um pico de tempo nas sextas-feiras, para os membros casuais e para os membros assinantes praticamente um patamar durante a semana com picos de tempo nos sábados e domingos. Mais facilmente visto no gráfico abaixo.
+
+```{r message=FALSE, warning=FALSE}
+all_trips_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual, weekday) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, weekday)  %>% 
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) +
+  geom_col(position = "dodge") + labs(title = 'Tempo médio de pedaladas por semana', fill = "Legenda") +
+  xlab("Dias da semana") + ylab('Média de duração')
+```
+
+* Já para a quantidade de locações:
+
+```{r message=FALSE, warning=FALSE}
+all_trips_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual, weekday) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, weekday)  %>% 
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge") + labs(title = 'Pedaladas por semana', 
+                                      fill = "Legenda") +
+  xlab("Dias da semana") + ylab('Número de pedaladas')
+
+```
+
+Fica claro que os membros assinantes fazem uma maior utilização do serviço durante os dias da semana e os membros casuais nos finais de semana.
+
+* Repetindo as análises, agora com relação aos meses.
+
+```{r message=FALSE, warning=FALSE}
+all_trips_v2 %>% ## Duração por mes
+  group_by(member_casual, month) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, month)  %>% 
+  ggplot(aes(x = month, y = average_duration, fill = member_casual)) +
+  geom_col(position = "dodge") + labs(title = 'Tempo medio de pedaladas por mês', fill = "Legenda") +
+  xlab("Meses") + ylab('Média de duração')
+```
+
+É possível notar um que durante os primeiros meses do ano, janeiro e fevereiro, possuem picos de tempo médio de pedalada para os membros casuais, possivelmente devido a tentativas de mudanças de comportamento causadas pela passagem de ano.
+
+* Já com relação a quantidade de corridas:
+
+```{r message=FALSE, warning=FALSE}
+all_trips_v2 %>% ## Quantidade por mes
+  group_by(member_casual, month) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, month)  %>% 
+  ggplot(aes(x = month, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge") + labs(title = 'Pedaladas por mês', 
+                                      fill = "Legenda") +
+  xlab("Meses") + ylab('Número de locações')
+
+```
+
+É notável um aumento durante os meses mais quentes do ano, visto que Chicago localiza-se no hemisfério norte, vai de junho a setembro e o inverno de dezembro a março.
+
+* Como último ponto, sobre a mudança de estações de retirada e devolução:
+
+```{r message=FALSE, warning=FALSE}
+all_trips_v2 %>% ## Grafico por mudança de estação
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual,weekday,  change_statio) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual,  change_statio)  %>% 
+  ggplot(aes(x = change_statio, y = number_of_rides, fill = member_casual )) +
+  geom_col(position = "dodge") + labs(title = 'Utilização da mesma \n estação de retirada para entrega', fill = "Legenda") +
+  xlab("Mudança de estação") + ylab('Número de locações')
+```
+
+É difícil a comprovação de que os membros assinantes usem as bicicletas como forma de se deslocarem de um ponto a outro, visto que a grande maioria, assim como os casuais, utiliza o mesmo ponto de retirada como o de devolução..
+
+## Conclusôes
+
+Para o aumento de assinantes anuais, é possível explorar três características o aumento do tempo das pedaladas no início do ano, uma maior utilização nos fins de semana e nos meses mais quentes do ano.
+
+A maior diferença entre a forma de utilização dos serviços estão em: tempos mais longos para casuais e uma maior utilização nos finais de semana. Além de uma procura muito baixa nos meses de inverno.
+
+Uma possível forma de explorar as mídias sociais para converter casuais em assinantes seriam mensagens/ anúncios sobre estilos de vida mais saudáveis e explorar a paisagem da cidade.
+
+Um possível motivo de conversão seria uma diminuição do valor pago visto que a utilização deles é mais longa, então um plano que contemple um abono pode levar mais usuário a se tornarem assinantes. 
+
+Mas para melhor direcionamentos, outros dados deveriam ser inclusos nos bancos de dados da empresa. É necessário fazer uma avaliação sobre a finalidade de uso, transporte ou passeio, para isso precisando de mais informações sobre a localização da bicicleta. Para um maior alcance de mídias socias, saber se uma campanha deve ser focada em um certo gênero ou faixa etária faria diferença.
+
+Para uma melhor visualização recomenda-se o link para o [Tableau Public](https://public.tableau.com/shared/723CZDMNS?:display_count=n&:origin=viz_share_link)
